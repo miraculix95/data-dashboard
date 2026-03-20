@@ -54,6 +54,29 @@ with col_info:
     st.caption(f"Wird alle {ttl_h} Stunden aktualisiert.")
 
 
+def _generate_cover_image(context: str) -> bytes | None:
+    """Generate a cover image via FAL (Flux Schnell). Returns image bytes or None on failure."""
+    api_key = os.getenv("FAL_KEY")
+    if not api_key:
+        return None
+    prompt_template = (Path(__file__).parent.parent / "prompts" / "cover_image.md").read_text()
+    prompt = prompt_template.format(context=context)
+    try:
+        resp = requests.post(
+            "https://fal.run/fal-ai/flux/schnell",
+            headers={"Authorization": f"Key {api_key}", "Content-Type": "application/json"},
+            json={"prompt": prompt, "image_size": "landscape_16_9", "num_images": 1},
+            timeout=45,
+        )
+        resp.raise_for_status()
+        image_url = resp.json()["images"][0]["url"]
+        img_resp = requests.get(image_url, timeout=20)
+        img_resp.raise_for_status()
+        return img_resp.content
+    except Exception:
+        return None
+
+
 def _firecrawl_scrape(url: str, max_chars: int = 8000) -> str:
     api_key = os.getenv("FIRECRAWL_API_KEY")
     if not api_key:
@@ -222,8 +245,15 @@ if not all_articles:
     st.warning("Keine Artikel gefunden. Firecrawl-Key prüfen.")
     st.stop()
 
-# --- LLM filter ---
+# --- Cover image + LLM filter (parallel feel via sequential spinners) ---
+with st.spinner("Generiere Titelgrafik (FAL Flux)..."):
+    cover_image = _generate_cover_image(context="artificial intelligence news, LLMs, machine learning research, open source AI tools")
+
 st.divider()
+
+if cover_image:
+    st.image(cover_image, caption="AI-generierte Titelgrafik (Flux Schnell)", use_container_width=True)
+
 st.subheader(f"🤖 Top {NEWS_CFG['top_n']} Artikel — KI-kuratiert")
 st.caption(f"Model: `{LLM_CFG['model']}` · {len(all_articles)} Artikel aus {sum([NEWS_CFG['sources'].get(s, False) for s in ['hackernews','the_decoder','venturebeat']])} Quellen")
 

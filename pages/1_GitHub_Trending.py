@@ -113,18 +113,13 @@ def _send_telegram_pdf(pdf_bytes: bytes, filename: str, caption: str) -> str:
         return str(e)
 
 
-def _generate_cover_image(language: str, date: str) -> bytes | None:
-    """Generate a cover image via FAL (Flux Schnell). Returns JPEG bytes or None on failure."""
+def _generate_cover_image(context: str) -> bytes | None:
+    """Generate a cover image via FAL (Flux Schnell). Returns image bytes or None on failure."""
     api_key = os.getenv("FAL_KEY")
     if not api_key:
         return None
-    prompt = (
-        f"Abstract digital artwork representing open source software development and AI technology trends. "
-        f"GitHub repositories, code, data visualization, glowing nodes and network connections. "
-        f"Dark background, deep blue and violet tones, futuristic, professional, minimalist, high quality. "
-        f"No text, no letters, no words."
-        + (f" Focus on {language} programming ecosystem." if language else "")
-    )
+    prompt_template = (Path(__file__).parent.parent / "prompts" / "cover_image.md").read_text()
+    prompt = prompt_template.format(context=context)
     try:
         resp = requests.post(
             "https://fal.run/fal-ai/flux/schnell",
@@ -540,7 +535,8 @@ if CONFIG["summary"]["enabled"]:
 
         # Generate cover image via FAL
         with st.spinner("Generiere Titelgrafik (FAL Flux)..."):
-            cover_image = _generate_cover_image(language=language, date=datetime.utcnow().strftime("%d.%m.%Y"))
+            context = f"open source software development and GitHub trending repositories" + (f", {language} programming ecosystem" if language else "")
+            cover_image = _generate_cover_image(context=context)
 
         st.session_state["summary_md"] = summary_md
         st.session_state["summary_date"] = datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
