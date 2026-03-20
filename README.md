@@ -1,24 +1,31 @@
 # data-dashboard
 
-Streamlit multi-page dashboard with password protection, GitHub trend analysis, and AI-generated reports.
+Streamlit multi-page dashboard with AI-powered analysis, curated news feed, and PDF reporting.
 
-## Tech stack
-
-Python, Streamlit, pandas, seaborn, matplotlib, fpdf2, openrouter API
+Live: [dashboard.ai-devhub-247.site](https://dashboard.ai-devhub-247.site)
 
 ## Pages
 
 - **Home** — welcome screen
-- **GitHub Trending** — top repos from the last 7 days via GitHub Search API, bar chart + data table, AI summary, PDF export
+- **GitHub Trending** — top repos by stars, AI summary, PDF export with appendix, watchlist
+- **Watchlist** — saved repos with management
+- **AI News** — top AI articles from HackerNews, The Decoder, VentureBeat — LLM-curated
+
+## Tech stack
+
+Python, Streamlit, pandas, seaborn, matplotlib, fpdf2, OpenRouter API, Firecrawl
 
 ## Features
 
-- Password-protected (via `st.secrets`)
-- Data cached for 1 week, manual refresh button
-- AI Summary: fetches README context for each repo, generates a trend analysis via OpenRouter LLM
-- PDF export: AI summary + repo table with clickable GitHub links, README-based descriptions, credits footer
-- Configurable model via `config.yaml` (Gemini, GPT-4o, Claude, DeepSeek, Grok, ...)
-- Prompt template in `prompts/github_summary.md` — edit without touching code
+- Password-protected via `st.secrets`
+- **GitHub Trending**: language dropdown (20 languages), time filter (24h/7d/30d), repo limit slider
+- **AI Summary**: fetches README context (2000 chars/repo), generates trend analysis + per-repo summaries via OpenRouter LLM
+- **PDF export**: AI analysis + repo table with clickable links + appendix with 5–8 sentence per-repo descriptions
+- **Telegram send**: PDF directly to chat via button (no manual download)
+- **Watchlist**: mark repos from the trending feed, persisted as JSON
+- **AI News**: Firecrawl scrapes The Decoder + VentureBeat, HackerNews via public API — LLM filters top 8 articles with summaries, 4h cache
+- Configurable model via `config.yaml` (Gemini, GPT-4o, Claude, Grok, DeepSeek, ...)
+- Prompt templates in `prompts/` — edit without touching code
 
 ## Run locally
 
@@ -36,15 +43,16 @@ Create `.streamlit/secrets.toml`:
 password = "your-password"
 ```
 
-Create `devhub/.env` (shared key store):
+Create `devhub/.env`:
 
 ```env
 OPENROUTER_API_KEY=your-key
+FIRECRAWL_API_KEY=your-key   # required for AI News page
 ```
 
 ## Configuration
 
-Edit `config.yaml` to change LLM model, cache TTL, number of repos, output language:
+`config.yaml`:
 
 ```yaml
 llm:
@@ -58,11 +66,16 @@ github:
 summary:
   top_n: 10
   language: de   # de or en
+
+news:
+  cache_ttl_seconds: 14400   # 4 hours
+  top_n: 8
+  language: de
+  sources:
+    hackernews: true
+    the_decoder: true
+    venturebeat: true
 ```
-
-## Prompt customization
-
-Edit `prompts/github_summary.md` directly to change the analysis style, language, focus areas, or output format. Available placeholders: `{repo_list}`, `{lang_instruction}`, `{date}`.
 
 ## Production start (VPS)
 
@@ -71,26 +84,35 @@ cd devhub/data-dashboard
 nohup .venv/bin/streamlit run app.py --server.port 8501 --server.headless true > streamlit.log 2>&1 &
 ```
 
-Logs: `devhub/data-dashboard/streamlit.log`
-
 ## Version history
 
+### v1.5 — 2026-03-20
+- AI News page: HackerNews (API) + The Decoder + VentureBeat (Firecrawl) — LLM-curated feed
+- `FIRECRAWL_API_KEY` added as dependency for news scraping
+
+### v1.4 — 2026-03-20
+- Language filter: dropdown with 20 languages
+- Time filter: 24h / 7 Tage / 30 Tage radio buttons
+- Telegram send button: PDF directly to chat
+- Watchlist: multiselect + dedicated Watchlist page
+
+### v1.3 — 2026-03-20
+- Per-repo detail summaries (5–8 sentences) as PDF appendix
+- Clickable repo headings in appendix
+
 ### v1.2 — 2026-03-20
-- AI Summary: README-based context (2000 chars per repo) instead of GitHub description
-- PDF table: clickable repo links, multi-line description column with text wrapping
-- PDF footer with generation credits (model, date, source)
-- Prompt extracted to `prompts/github_summary.md` for easy customization
-- Unicode sanitizer for PDF output (handles Grok/Gemini special chars)
+- README-based context (2000 chars per repo) for better AI analysis
+- PDF table: clickable links, multi-line description with text wrapping
+- PDF footer with generation credits
+- Prompt extracted to `prompts/github_summary.md`
+- Unicode sanitizer for PDF output
 
 ### v1.1 — 2026-03-20
-- AI Summary feature via OpenRouter (configurable model)
+- AI Summary via OpenRouter (configurable model)
 - PDF export of AI summary + repo table
-- README context fetching per repo via GitHub API
 - `config.yaml` for model selection and settings
-- Manual refresh button, cache TTL set to 1 week
+- Manual refresh button, 1-week cache
 
 ### v1.0 — 2026-03-18
-- Initial release
-- GitHub Trending page: bar chart + data table
-- Password protection via st.secrets
-- Deployed at dashboard.ai-devhub-247.site
+- Initial release: GitHub Trending page with bar chart + data table
+- Password protection, deployed at dashboard.ai-devhub-247.site

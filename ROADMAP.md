@@ -4,19 +4,17 @@ Live at: [dashboard.ai-devhub-247.site](https://dashboard.ai-devhub-247.site)
 
 ---
 
-## Aktueller Stand (v1.4)
+## Aktueller Stand (v1.5)
 
-- GitHub Trending: Top-Repos via GitHub Search API
-- **Zeitraum-Filter**: 24h / 7 Tage / 30 Tage (Radio-Buttons)
-- **Sprach-Filter**: Dropdown mit 20 Sprachen statt Freitext
-- Wöchentlicher Cache + manueller Refresh-Button
+- **GitHub Trending**: Sprach-Dropdown (20 Sprachen), Zeitraum-Filter (24h/7d/30d), Repo-Limit
 - AI Summary via OpenRouter (Gemini, Grok, GPT-4o, Claude — konfigurierbar)
-- README-Kontext pro Repo (erste 2000 Zeichen) für bessere Analyse
-- PDF-Export: Trend-Analyse + Tabelle mit klickbaren Links + Anhang mit Repo-Beschreibungen (5–8 Sätze pro Repo)
-- **Telegram-Versand**: PDF direkt per Button in den Chat schicken
-- **Watchlist**: Repos aus dem Trending-Feed markieren, eigene Seite mit Verwaltung
+- README-Kontext pro Repo (2000 Zeichen) für bessere Analyse
+- PDF-Export: Trend-Analyse + Tabelle mit klickbaren Links + Anhang (5–8 Sätze/Repo)
+- **Telegram-Versand**: PDF direkt per Button in den Chat
+- **Watchlist**: Repos markieren, eigene Verwaltungsseite
+- **AI News**: HackerNews + The Decoder + VentureBeat via Firecrawl, LLM-kuratiert, 4h-Cache
 - Passwortschutz via `st.secrets`
-- Prompt-Template in `prompts/github_summary.md` — editierbar ohne Code
+- Alles konfigurierbar via `config.yaml`, Prompts in `prompts/`
 
 ---
 
@@ -26,6 +24,7 @@ Live at: [dashboard.ai-devhub-247.site](https://dashboard.ai-devhub-247.site)
 ### ~~Zeitraum-Filter~~ ✅ erledigt
 ### ~~Telegram-Versand~~ ✅ erledigt
 ### ~~Watchlist~~ ✅ erledigt
+### ~~AI News Feed (Firecrawl)~~ ✅ erledigt
 
 ### Mehrsprachiger Report im UI
 Config-Option `summary.language: de/en/fr` bereits vorhanden. Erweiterung: Sprachauswahl direkt im UI als Dropdown, ohne Config-Datei anzufassen.
