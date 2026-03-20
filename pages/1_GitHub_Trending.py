@@ -72,7 +72,7 @@ def _sanitize(text: str) -> str:
     return text.encode("latin-1", errors="ignore").decode("latin-1")
 
 
-def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summaries: dict = None) -> bytes:
+def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summaries: dict = None, repo_details: dict = None) -> bytes:
     """Generate a PDF from the summary markdown and repo table."""
     import io
     import re
@@ -171,8 +171,31 @@ def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summarie
 
         pdf.set_xy(x_start, row_bottom)
 
+    # --- Appendix: per-repo details ---
+    if repo_details:
+        pdf.add_page()
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.set_text_color(30, 30, 30)
+        pdf.multi_cell(0, 10, "Anhang: Projektbeschreibungen", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(2)
+
+        for i, row in df.iterrows():
+            detail = repo_details.get(row["repo"], "")
+            if not detail:
+                continue
+            # Repo name as subheading
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.set_text_color(0, 0, 180)
+            repo_url = str(row.get("url", ""))
+            pdf.multi_cell(0, 7, _sanitize(row["repo"]), new_x=XPos.LMARGIN, new_y=YPos.NEXT, link=repo_url)
+            # Detail text
+            pdf.set_font("Helvetica", "", 9)
+            pdf.set_text_color(50, 50, 50)
+            pdf.multi_cell(0, 6, _sanitize(detail), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.ln(4)
+
     # Credits footer
-    pdf.ln(8)
+    pdf.ln(4)
     pdf.set_font("Helvetica", "I", 8)
     pdf.set_text_color(160, 160, 160)
     pdf.multi_cell(
@@ -318,6 +341,9 @@ if CONFIG["summary"]["enabled"]:
         repo_summary_placeholders = "\n".join(
             f"{name}|||[Einzeiler hier]" for name in repo_names
         )
+        repo_detail_placeholders = "\n".join(
+            f"{name}|||[Detailbeschreibung hier]" for name in repo_names
+        )
 
         lang_instruction = (
             "Schreibe den Bericht auf Deutsch." if lang_out == "de"
@@ -330,6 +356,7 @@ if CONFIG["summary"]["enabled"]:
             date=datetime.utcnow().strftime("%d.%m.%Y"),
             repo_list=repo_list,
             repo_summary_placeholders=repo_summary_placeholders,
+            repo_detail_placeholders=repo_detail_placeholders,
         )
 
         with st.spinner(f"Asking {model}..."):
@@ -356,15 +383,30 @@ if CONFIG["summary"]["enabled"]:
                 st.error(f"LLM error: {e}")
                 st.stop()
 
-        # Parse out the REPO_SUMMARIES block from the response
+        # Parse structured blocks from the response
         repo_summaries = {}
+        repo_details = {}
+
+        def _parse_kv_block(text: str) -> dict:
+            result = {}
+            for line in text.strip().splitlines():
+                if "|||" in line:
+                    key, _, val = line.partition("|||")
+                    result[key.strip()] = val.strip()
+            return result
+
+        # Strip REPO_DETAILS first (may come after REPO_SUMMARIES)
+        if "---REPO_DETAILS---" in raw_response:
+            before_details, _, details_block = raw_response.partition("---REPO_DETAILS---")
+            # Remove trailing separator "---" if present
+            details_text = details_block.split("---")[0]
+            repo_details = _parse_kv_block(details_text)
+            raw_response = before_details
+
         if "---REPO_SUMMARIES---" in raw_response:
             parts = raw_response.split("---REPO_SUMMARIES---", 1)
             summary_md = parts[0].strip()
-            for line in parts[1].strip().splitlines():
-                if "|||" in line:
-                    repo_key, _, one_liner = line.partition("|||")
-                    repo_summaries[repo_key.strip()] = one_liner.strip()
+            repo_summaries = _parse_kv_block(parts[1])
         else:
             summary_md = raw_response.strip()
 
@@ -372,6 +414,7 @@ if CONFIG["summary"]["enabled"]:
         st.session_state["summary_md"] = summary_md
         st.session_state["summary_date"] = datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
         st.session_state["repo_summaries"] = repo_summaries
+        st.session_state["repo_details"] = repo_details
 
     # Display summary if available
     if "summary_md" in st.session_state:
@@ -383,8 +426,9 @@ if CONFIG["summary"]["enabled"]:
 
         # PDF download
         saved_summaries = st.session_state.get("repo_summaries", {})
+        saved_details = st.session_state.get("repo_details", {})
         try:
-            pdf_bytes = _build_summary_pdf(df.head(top_n), summary_md, summary_date, model, repo_summaries=saved_summaries)
+            pdf_bytes = _build_summary_pdf(df.head(top_n), summary_md, summary_date, model, repo_summaries=saved_summaries, repo_details=saved_details)
         except Exception as e:
             st.error(f"PDF generation failed: {e}")
             pdf_bytes = None

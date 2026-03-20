@@ -11,13 +11,23 @@ Der Bericht soll:
 Schreibstil: Analytisch, direkt, ohne Floskeln. Kein "Es ist interessant zu bemerken..." — einfach die Analyse.
 Formatierung: Strukturiertes Markdown mit H2-Überschriften und Fließtext. Bullet-Listen nur wo wirklich sinnvoll.
 
-Dann füge am Ende — nach der Hauptanalyse — exakt folgenden Block an (NICHT im Markdown-Bericht, sondern als separaten Block nach einer Trennzeile):
+Füge nach der Hauptanalyse zwei strukturierte Datenblöcke an (NICHT im Markdown-Bericht, sondern direkt dahinter):
+
+**Block 1 — Kurzzusammenfassungen für die Tabelle:**
 
 ---REPO_SUMMARIES---
 {repo_summary_placeholders}
 
 Für jedes Repository eine Zeile im Format:
-owner/repo|||Einzeilige Zusammenfassung des Projekts in max. 120 Zeichen. Was macht es konkret? Für wen ist es relevant?
+owner/repo|||Einzeilige Zusammenfassung in max. 120 Zeichen. Was macht es konkret?
+
+**Block 2 — Detaillierte Zusammenfassungen für den Anhang:**
+
+---REPO_DETAILS---
+{repo_detail_placeholders}
+
+Für jedes Repository eine Zeile im Format:
+owner/repo|||3 bis 5 Saetze. Was ist das Problem/Ziel des Projekts? Wie wird es technisch geloest? Warum ist es gerade jetzt relevant? Wer profitiert davon?
 
 ---
 
