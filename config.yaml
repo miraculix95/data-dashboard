@@ -33,20 +33,43 @@ news:
     venturebeat: true         # https://venturebeat.com/category/ai/
 
 image_generation:
-  enabled: true
-  provider: fal               # fal | google
-  api_key_env: FAL_KEY        # which .env variable holds the key
+  enabled: true               # true | false — disable to skip image generation entirely
 
-  # --- FAL options (provider: fal) ---
-  model: fal-ai/flux/schnell  # fast & cheap, good quality
-  # model: fal-ai/flux/dev    # slower, higher quality
-  # model: fal-ai/flux-pro    # best quality, more expensive
-  # model: fal-ai/imagen4/preview  # Google Imagen 4 via FAL (needs FAL_KEY)
-  image_size: landscape_16_9
+  # -----------------------------------------------------------------------
+  # PROVIDER: fal
+  # Key: FAL_KEY in devhub/.env
+  # Docs: https://fal.ai/models
+  # -----------------------------------------------------------------------
+  # provider: fal
+  # api_key_env: FAL_KEY
+  # image_size: landscape_16_9   # landscape_16_9 | square_hd | portrait_4_3 | landscape_4_3
+  #
+  # Models (uncomment one):
+  # model: fal-ai/flux/schnell        # Flux Schnell — sehr schnell, günstig (~$0.003/Bild)
+  # model: fal-ai/flux/dev            # Flux Dev — besser, langsamer
+  # model: fal-ai/flux-pro            # Flux Pro — höchste Qualität, teurer
+  # model: fal-ai/flux-pro/v1.1       # Flux Pro 1.1 — neueste Version
+  # model: fal-ai/imagen4/preview     # Google Imagen 4 via FAL (braucht FAL_KEY, nicht GEMINI_KEY)
+  # model: fal-ai/recraft-v3          # Recraft V3 — sehr gute Bildqualität
+  # model: fal-ai/stable-diffusion-v3-medium  # SD3 Medium
 
-  # --- Google options (provider: google) ---
+  # -----------------------------------------------------------------------
+  # PROVIDER: google
+  # Key: GEMINI_API_KEY in devhub/.env
+  # Docs: https://ai.google.dev/api/images
+  # -----------------------------------------------------------------------
   # provider: google
-  # model: imagen-3.0-generate-002        # Imagen 3
-  # model: imagen-4.0-generate-preview-05-20  # Imagen 4 (Nano Banana)
   # api_key_env: GEMINI_API_KEY
-  # image_size: "16:9"        # Google uses aspect ratio strings
+  # image_size: "16:9"    # "1:1" | "4:3" | "3:4" | "16:9" | "9:16"
+  #
+  # Models (uncomment one):
+  # model: imagen-3.0-generate-002              # Imagen 3 — stabil, günstig
+  # model: imagen-4.0-generate-preview-05-20    # Imagen 4 (Nano Banana) — beste Qualität
+
+  # -----------------------------------------------------------------------
+  # AKTIVE KONFIGURATION
+  # -----------------------------------------------------------------------
+  provider: fal
+  api_key_env: FAL_KEY
+  model: fal-ai/flux/schnell
+  image_size: landscape_16_9
