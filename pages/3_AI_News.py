@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import yaml
 import json
 import requests
@@ -7,6 +8,8 @@ import streamlit as st
 from datetime import datetime, timezone
 from pathlib import Path
 from dotenv import load_dotenv
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils import generate_cover_image
 
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
@@ -53,28 +56,6 @@ with col_info:
     ttl_h = TTL // 3600
     st.caption(f"Wird alle {ttl_h} Stunden aktualisiert.")
 
-
-def _generate_cover_image(context: str) -> bytes | None:
-    """Generate a cover image via FAL (Flux Schnell). Returns image bytes or None on failure."""
-    api_key = os.getenv("FAL_KEY")
-    if not api_key:
-        return None
-    prompt_template = (Path(__file__).parent.parent / "prompts" / "cover_image.md").read_text()
-    prompt = prompt_template.format(context=context)
-    try:
-        resp = requests.post(
-            "https://fal.run/fal-ai/flux/schnell",
-            headers={"Authorization": f"Key {api_key}", "Content-Type": "application/json"},
-            json={"prompt": prompt, "image_size": "landscape_16_9", "num_images": 1},
-            timeout=45,
-        )
-        resp.raise_for_status()
-        image_url = resp.json()["images"][0]["url"]
-        img_resp = requests.get(image_url, timeout=20)
-        img_resp.raise_for_status()
-        return img_resp.content
-    except Exception:
-        return None
 
 
 def _firecrawl_scrape(url: str, max_chars: int = 8000) -> str:
@@ -245,14 +226,16 @@ if not all_articles:
     st.warning("Keine Artikel gefunden. Firecrawl-Key prüfen.")
     st.stop()
 
-# --- Cover image + LLM filter (parallel feel via sequential spinners) ---
-with st.spinner("Generiere Titelgrafik (FAL Flux)..."):
-    cover_image = _generate_cover_image(context="artificial intelligence news, LLMs, machine learning research, open source AI tools")
+# --- Cover image + LLM filter ---
+provider = CONFIG.get("image_generation", {}).get("provider", "fal")
+model = CONFIG.get("image_generation", {}).get("model", "")
+with st.spinner(f"Generiere Titelgrafik ({provider})..."):
+    cover_image = generate_cover_image(CONFIG, context="artificial intelligence news, LLMs, machine learning research, open source AI tools")
 
 st.divider()
 
 if cover_image:
-    st.image(cover_image, caption="AI-generierte Titelgrafik (Flux Schnell)", use_container_width=True)
+    st.image(cover_image, caption=f"AI-generierte Titelgrafik ({provider} · {model})", use_container_width=True)
 
 st.subheader(f"🤖 Top {NEWS_CFG['top_n']} Artikel — KI-kuratiert")
 st.caption(f"Model: `{LLM_CFG['model']}` · {len(all_articles)} Artikel aus {sum([NEWS_CFG['sources'].get(s, False) for s in ['hackernews','the_decoder','venturebeat']])} Quellen")

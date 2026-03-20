@@ -31,3 +31,22 @@ news:
     hackernews: true          # via public API, no Firecrawl needed
     the_decoder: true         # https://the-decoder.de (German AI news)
     venturebeat: true         # https://venturebeat.com/category/ai/
+
+image_generation:
+  enabled: true
+  provider: fal               # fal | google
+  api_key_env: FAL_KEY        # which .env variable holds the key
+
+  # --- FAL options (provider: fal) ---
+  model: fal-ai/flux/schnell  # fast & cheap, good quality
+  # model: fal-ai/flux/dev    # slower, higher quality
+  # model: fal-ai/flux-pro    # best quality, more expensive
+  # model: fal-ai/imagen4/preview  # Google Imagen 4 via FAL (needs FAL_KEY)
+  image_size: landscape_16_9
+
+  # --- Google options (provider: google) ---
+  # provider: google
+  # model: imagen-3.0-generate-002        # Imagen 3
+  # model: imagen-4.0-generate-preview-05-20  # Imagen 4 (Nano Banana)
+  # api_key_env: GEMINI_API_KEY
+  # image_size: "16:9"        # Google uses aspect ratio strings

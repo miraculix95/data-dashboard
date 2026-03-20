@@ -10,6 +10,8 @@ import streamlit as st
 from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils import generate_cover_image
 
 # Load shared .env from devhub root
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
@@ -112,28 +114,6 @@ def _send_telegram_pdf(pdf_bytes: bytes, filename: str, caption: str) -> str:
     except Exception as e:
         return str(e)
 
-
-def _generate_cover_image(context: str) -> bytes | None:
-    """Generate a cover image via FAL (Flux Schnell). Returns image bytes or None on failure."""
-    api_key = os.getenv("FAL_KEY")
-    if not api_key:
-        return None
-    prompt_template = (Path(__file__).parent.parent / "prompts" / "cover_image.md").read_text()
-    prompt = prompt_template.format(context=context)
-    try:
-        resp = requests.post(
-            "https://fal.run/fal-ai/flux/schnell",
-            headers={"Authorization": f"Key {api_key}", "Content-Type": "application/json"},
-            json={"prompt": prompt, "image_size": "landscape_16_9", "num_images": 1},
-            timeout=45,
-        )
-        resp.raise_for_status()
-        image_url = resp.json()["images"][0]["url"]
-        img_resp = requests.get(image_url, timeout=20)
-        img_resp.raise_for_status()
-        return img_resp.content
-    except Exception:
-        return None
 
 
 def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summaries: dict = None, repo_details: dict = None, cover_image: bytes = None, language: str = "") -> bytes:
@@ -533,10 +513,11 @@ if CONFIG["summary"]["enabled"]:
         else:
             summary_md = raw_response.strip()
 
-        # Generate cover image via FAL
-        with st.spinner("Generiere Titelgrafik (FAL Flux)..."):
-            context = f"open source software development and GitHub trending repositories" + (f", {language} programming ecosystem" if language else "")
-            cover_image = _generate_cover_image(context=context)
+        # Generate cover image
+        provider = CONFIG.get("image_generation", {}).get("provider", "fal")
+        with st.spinner(f"Generiere Titelgrafik ({provider})..."):
+            context = "open source software development and GitHub trending repositories" + (f", {language} programming ecosystem" if language else "")
+            cover_image = generate_cover_image(CONFIG, context)
 
         st.session_state["summary_md"] = summary_md
         st.session_state["summary_date"] = datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
@@ -557,7 +538,9 @@ if CONFIG["summary"]["enabled"]:
         saved_cover = st.session_state.get("cover_image")
 
         if saved_cover:
-            st.image(saved_cover, caption="AI-generierte Titelgrafik (Flux Schnell)", use_container_width=True)
+            provider = CONFIG.get("image_generation", {}).get("provider", "fal")
+            model = CONFIG.get("image_generation", {}).get("model", "")
+            st.image(saved_cover, caption=f"AI-generierte Titelgrafik ({provider} · {model})", use_container_width=True)
 
         try:
             pdf_bytes = _build_summary_pdf(
