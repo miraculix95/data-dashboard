@@ -4,13 +4,17 @@ Live at: [dashboard.ai-devhub-247.site](https://dashboard.ai-devhub-247.site)
 
 ---
 
-## Aktueller Stand (v1.3)
+## Aktueller Stand (v1.4)
 
-- GitHub Trending: Top-Repos der letzten 7 Tage via GitHub Search API
+- GitHub Trending: Top-Repos via GitHub Search API
+- **Zeitraum-Filter**: 24h / 7 Tage / 30 Tage (Radio-Buttons)
+- **Sprach-Filter**: Dropdown mit 20 Sprachen statt Freitext
 - Wöchentlicher Cache + manueller Refresh-Button
 - AI Summary via OpenRouter (Gemini, Grok, GPT-4o, Claude — konfigurierbar)
 - README-Kontext pro Repo (erste 2000 Zeichen) für bessere Analyse
-- PDF-Export: Trend-Analyse + Tabelle mit klickbaren Links + Anhang mit Repo-Beschreibungen
+- PDF-Export: Trend-Analyse + Tabelle mit klickbaren Links + Anhang mit Repo-Beschreibungen (5–8 Sätze pro Repo)
+- **Telegram-Versand**: PDF direkt per Button in den Chat schicken
+- **Watchlist**: Repos aus dem Trending-Feed markieren, eigene Seite mit Verwaltung
 - Passwortschutz via `st.secrets`
 - Prompt-Template in `prompts/github_summary.md` — editierbar ohne Code
 
@@ -18,20 +22,16 @@ Live at: [dashboard.ai-devhub-247.site](https://dashboard.ai-devhub-247.site)
 
 ## Kurzfristig — GitHub Trending Verbesserungen
 
-### Mehrsprachiger Report
-Config-Option `summary.language: de/en/fr` bereits vorhanden. Erweiterung: Sprachauswahl direkt im UI (Dropdown), ohne Config-Datei anzufassen.
+### ~~Sprach-Filter im UI~~ ✅ erledigt
+### ~~Zeitraum-Filter~~ ✅ erledigt
+### ~~Telegram-Versand~~ ✅ erledigt
+### ~~Watchlist~~ ✅ erledigt
 
-### Sprach-Filter im UI
-Momentan: Freitext-Eingabe. Besser: Dropdown mit den gängigsten Sprachen (Python, TypeScript, Rust, Go, …) + "Alle".
+### Mehrsprachiger Report im UI
+Config-Option `summary.language: de/en/fr` bereits vorhanden. Erweiterung: Sprachauswahl direkt im UI als Dropdown, ohne Config-Datei anzufassen.
 
-### Zeitraum-Filter
-Aktuell fest auf 7 Tage. Option: 24h / 7d / 30d als Buttons. Zeigt andere Trending-Dynamiken.
-
-### E-Mail / Telegram-Versand
-"Jetzt als Telegram senden" — Button schickt PDF direkt an Bastian. Kein manuelles Download nötig. Oder: wöchentlicher automatischer Versand per Cron.
-
-### Favoriten / Watchlist
-Repos manuell markieren ("interessiert mich") — tauchen auf einer eigenen Seite wieder auf. Persistiert in einer lokalen JSON-Datei.
+### Automatischer wöchentlicher Telegram-Versand
+Cron-Job: jeden Montag 8 Uhr automatisch AI Summary generieren + PDF per Telegram schicken. Kein manuelles Klicken nötig.
 
 ---
 
