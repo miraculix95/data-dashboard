@@ -22,3 +22,12 @@ summary:
   enabled: true
   top_n: 10
   language: de                # de = German, en = English
+
+news:
+  cache_ttl_seconds: 14400    # 4 hours
+  top_n: 8                    # number of articles to show after LLM filter
+  language: de                # de = German, en = English
+  sources:
+    hackernews: true          # via public API, no Firecrawl needed
+    the_decoder: true         # https://the-decoder.de (German AI news)
+    venturebeat: true         # https://venturebeat.com/category/ai/
