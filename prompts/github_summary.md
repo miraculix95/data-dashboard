@@ -27,7 +27,7 @@ owner/repo|||Einzeilige Zusammenfassung in max. 120 Zeichen. Was macht es konkre
 {repo_detail_placeholders}
 
 Für jedes Repository eine Zeile im Format:
-owner/repo|||3 bis 5 Saetze. Was ist das Problem/Ziel des Projekts? Wie wird es technisch geloest? Warum ist es gerade jetzt relevant? Wer profitiert davon?
+owner/repo|||5 bis 8 Saetze. Was ist das Problem/Ziel des Projekts? Wie wird es technisch geloest? Was unterscheidet es von Alternativen? Warum ist es gerade jetzt relevant? Wer profitiert davon und wie?
 
 ---
 
