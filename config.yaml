@@ -1,0 +1,24 @@
+# Data Dashboard Configuration
+
+llm:
+  provider: openrouter
+  # model: x-ai/grok-3-mini           # Grok 3 Mini (fast, capable)
+  # model: x-ai/grok-2               # Grok 2 (more powerful)
+  # model: openai/gpt-4o-mini        # GPT-4o Mini (cheap & fast)
+  # model: openai/gpt-4o             # GPT-4o (best quality)
+  # model: anthropic/claude-3-5-haiku-20241022  # Claude Haiku (fast)
+  # model: anthropic/claude-sonnet-4-5          # Claude Sonnet
+  model: google/gemini-2.0-flash-001   # Gemini Flash (very cheap)
+  # model: deepseek/deepseek-chat    # DeepSeek V3 (cheap)
+  max_tokens: 5000
+  temperature: 0.7
+
+github:
+  cache_ttl_seconds: 604800   # 1 week
+  default_limit: 10
+  default_language: ""
+
+summary:
+  enabled: true
+  top_n: 10
+  language: de                # de = German, en = English
