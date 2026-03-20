@@ -19,6 +19,16 @@ CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
 with open(CONFIG_PATH) as f:
     CONFIG = yaml.safe_load(f)
 
+WATCHLIST_PATH = Path(__file__).parent.parent / "watchlist.json"
+
+LANGUAGES = [
+    "", "Python", "TypeScript", "JavaScript", "Rust", "Go",
+    "Java", "C++", "C", "C#", "Swift", "Kotlin", "Ruby", "PHP",
+    "Shell", "Jupyter Notebook", "HTML", "Dart", "Scala", "Haskell",
+]
+
+TIME_OPTIONS = {"24h": 1, "7 Tage": 7, "30 Tage": 30}
+
 
 def check_password():
     def password_entered():
@@ -43,7 +53,6 @@ if not check_password():
 
 st.set_page_config(page_title="GitHub Trending", page_icon="⭐", layout="wide")
 st.title("⭐ GitHub Trending Repositories")
-st.caption("Top repositories by stars — created in the last 7 days")
 
 # --- Refresh button ---
 col_r, col_info = st.columns([1, 5])
@@ -53,7 +62,7 @@ with col_r:
         st.rerun()
 with col_info:
     ttl_days = CONFIG["github"]["cache_ttl_seconds"] // 86400
-    st.caption(f"Data is cached for {ttl_days} day(s). Use the button to force a reload.")
+    st.caption(f"Data cached for {ttl_days} day(s). Use the button to force a reload.")
 
 
 def _sanitize(text: str) -> str:
@@ -68,8 +77,40 @@ def _sanitize(text: str) -> str:
     }
     for char, replacement in replacements.items():
         text = text.replace(char, replacement)
-    # Drop anything still outside latin-1 silently
     return text.encode("latin-1", errors="ignore").decode("latin-1")
+
+
+def _load_watchlist() -> list:
+    if WATCHLIST_PATH.exists():
+        return json.loads(WATCHLIST_PATH.read_text())
+    return []
+
+
+def _save_watchlist(entries: list):
+    WATCHLIST_PATH.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
+
+
+def _send_telegram_pdf(pdf_bytes: bytes, filename: str, caption: str) -> str:
+    """Send a PDF to the configured Telegram chat. Returns error string or empty string on success."""
+    try:
+        settings_path = Path(__file__).parent.parent.parent / ".claude" / "claudeclaw" / "settings.json"
+        s = json.loads(settings_path.read_text())
+        token = s["telegram"]["token"]
+        chat_id = s["telegram"]["allowedUserIds"][0]
+    except Exception as e:
+        return f"Config error: {e}"
+    try:
+        import io
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendDocument",
+            data={"chat_id": chat_id, "caption": caption},
+            files={"document": (filename, io.BytesIO(pdf_bytes), "application/pdf")},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return ""
+    except Exception as e:
+        return str(e)
 
 
 def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summaries: dict = None, repo_details: dict = None) -> bytes:
@@ -112,12 +153,10 @@ def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summarie
     pdf.set_text_color(30, 30, 30)
     pdf.multi_cell(0, 8, "Top Repositories", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    # Col widths sum to 170mm (= page width minus margins)
     col_widths = [55, 18, 18, 24, 55]
     headers = ["Repo", "Stars", "Forks", "Language", "Description"]
     ROW_H = 8
 
-    # Header row
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_fill_color(220, 220, 220)
     pdf.set_text_color(30, 30, 30)
@@ -131,7 +170,6 @@ def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summarie
         pdf.set_fill_color(*fill_color)
         pdf.set_text_color(60, 60, 60)
 
-        # Use LLM-generated one-liner if available, fall back to GitHub description
         desc = (repo_summaries or {}).get(row["repo"], str(row["description"]))
         vals = [
             _sanitize(row["repo"][:28]),
@@ -144,7 +182,6 @@ def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summarie
         x_start = pdf.get_x()
         y_start = pdf.get_y()
 
-        # Draw single-line cells for first 4 columns (repo col gets a clickable link)
         repo_url = str(row.get("url", ""))
         for j, (val, w) in enumerate(zip(vals[:-1], col_widths[:-1])):
             link = repo_url if j == 0 else ""
@@ -152,8 +189,6 @@ def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summarie
             pdf.cell(w, ROW_H, val, border=1, fill=True, link=link)
         pdf.set_text_color(60, 60, 60)
 
-        # Multi-cell for description (wraps automatically)
-        x_desc = pdf.get_x()
         pdf.multi_cell(
             col_widths[-1], ROW_H, vals[-1],
             border=1, fill=True,
@@ -162,7 +197,6 @@ def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summarie
         )
         row_bottom = pdf.get_y()
 
-        # Extend borders of single-line cells to match description height
         if row_bottom > y_start + ROW_H:
             x = x_start
             for w in col_widths[:-1]:
@@ -183,12 +217,10 @@ def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summarie
             detail = repo_details.get(row["repo"], "")
             if not detail:
                 continue
-            # Repo name as subheading
             pdf.set_font("Helvetica", "B", 10)
             pdf.set_text_color(0, 0, 180)
             repo_url = str(row.get("url", ""))
             pdf.multi_cell(0, 7, _sanitize(row["repo"]), new_x=XPos.LMARGIN, new_y=YPos.NEXT, link=repo_url)
-            # Detail text
             pdf.set_font("Helvetica", "", 9)
             pdf.set_text_color(50, 50, 50)
             pdf.multi_cell(0, 6, _sanitize(detail), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -222,10 +254,9 @@ def fetch_readme(repo_full_name: str, max_chars: int = 2000) -> str:
         if resp.status_code != 200:
             return ""
         content = base64.b64decode(resp.json().get("content", "")).decode("utf-8", errors="ignore")
-        # Strip markdown syntax and take first max_chars
         import re
-        content = re.sub(r"!\[.*?\]\(.*?\)", "", content)   # remove images
-        content = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", content)  # links → text
+        content = re.sub(r"!\[.*?\]\(.*?\)", "", content)
+        content = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", content)
         content = re.sub(r"#{1,6}\s*", "", content)
         content = re.sub(r"```[\s\S]*?```", "", content)
         content = re.sub(r"\s+", " ", content).strip()
@@ -235,8 +266,8 @@ def fetch_readme(repo_full_name: str, max_chars: int = 2000) -> str:
 
 
 @st.cache_data(ttl=TTL)
-def fetch_trending(language: str = "", limit: int = 10):
-    since = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+def fetch_trending(language: str = "", limit: int = 10, days: int = 7):
+    since = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d")
     query = f"created:>{since}"
     if language:
         query += f" language:{language}"
@@ -261,15 +292,22 @@ def fetch_trending(language: str = "", limit: int = 10):
 
 
 # --- Controls ---
-col1, col2 = st.columns([2, 1])
+col1, col2, col3 = st.columns([2, 1, 1])
 with col1:
-    language = st.text_input("Filter by language (optional)", placeholder="e.g. Python, TypeScript")
+    lang_labels = ["Alle"] + LANGUAGES[1:]
+    lang_choice = st.selectbox("Sprache", lang_labels, index=0)
+    language = "" if lang_choice == "Alle" else lang_choice
 with col2:
-    limit = st.slider("Number of repos", min_value=5, max_value=30, value=CONFIG["github"]["default_limit"])
+    limit = st.slider("Anzahl Repos", min_value=5, max_value=30, value=CONFIG["github"]["default_limit"])
+with col3:
+    time_label = st.radio("Zeitraum", list(TIME_OPTIONS.keys()), index=1, horizontal=True)
+    days = TIME_OPTIONS[time_label]
+
+st.caption(f"Top {limit} Repos · Sprache: {lang_choice} · Erstellt in den letzten {days} Tag(en)")
 
 with st.spinner("Fetching data from GitHub..."):
     try:
-        df = fetch_trending(language=language.strip(), limit=limit)
+        df = fetch_trending(language=language, limit=limit, days=days)
     except Exception as e:
         st.error(f"GitHub API error: {e}")
         st.stop()
@@ -284,7 +322,7 @@ fig, ax = plt.subplots(figsize=(12, 5))
 sns.barplot(data=df, x="stars", y="repo", palette="viridis", ax=ax)
 ax.set_xlabel("Stars")
 ax.set_ylabel("")
-ax.set_title("Trending GitHub Repositories (last 7 days)")
+ax.set_title(f"Trending GitHub Repositories ({time_label})")
 plt.tight_layout()
 st.pyplot(fig)
 
@@ -295,6 +333,36 @@ st.dataframe(
     use_container_width=True,
     hide_index=True,
 )
+
+# --- Watchlist ---
+st.subheader("Zur Watchlist hinzufügen")
+watchlist = _load_watchlist()
+watchlist_repos = {w["repo"] for w in watchlist}
+repo_options = df["repo"].tolist()
+already_watched = [r for r in repo_options if r in watchlist_repos]
+to_add = st.multiselect(
+    "Repos auswählen",
+    options=repo_options,
+    default=already_watched,
+    help="Ausgewählte Repos werden in der Watchlist gespeichert",
+)
+if st.button("💾 Watchlist speichern"):
+    # Remove repos from current fetch that are deselected, keep others
+    remaining = [w for w in watchlist if w["repo"] not in watchlist_repos or w["repo"] in to_add]
+    existing_repos = {w["repo"] for w in remaining}
+    for repo in to_add:
+        if repo not in existing_repos:
+            row = df[df["repo"] == repo].iloc[0]
+            remaining.append({
+                "repo": repo,
+                "url": row["url"],
+                "stars": int(row["stars"]),
+                "language": row["language"],
+                "description": row["description"],
+                "added": datetime.utcnow().strftime("%Y-%m-%d"),
+            })
+    _save_watchlist(remaining)
+    st.success(f"Watchlist gespeichert — {len(remaining)} Repo(s)")
 
 
 # --- AI Summary ---
@@ -315,7 +383,6 @@ if CONFIG["summary"]["enabled"]:
 
         top_df = df.head(top_n)
 
-        # Fetch READMEs for richer context
         readmes = {}
         with st.spinner("Fetching README context for top repos..."):
             for _, row in top_df.iterrows():
@@ -337,7 +404,6 @@ if CONFIG["summary"]["enabled"]:
             repo_list_parts.append(entry)
         repo_list = "\n\n".join(repo_list_parts)
 
-        # Placeholders to guide the model's per-repo summary section
         repo_summary_placeholders = "\n".join(
             f"{name}|||[Einzeiler hier]" for name in repo_names
         )
@@ -395,10 +461,8 @@ if CONFIG["summary"]["enabled"]:
                     result[key.strip()] = val.strip()
             return result
 
-        # Strip REPO_DETAILS first (may come after REPO_SUMMARIES)
         if "---REPO_DETAILS---" in raw_response:
             before_details, _, details_block = raw_response.partition("---REPO_DETAILS---")
-            # Remove trailing separator "---" if present
             details_text = details_block.split("---")[0]
             repo_details = _parse_kv_block(details_text)
             raw_response = before_details
@@ -410,7 +474,6 @@ if CONFIG["summary"]["enabled"]:
         else:
             summary_md = raw_response.strip()
 
-        # Store in session state
         st.session_state["summary_md"] = summary_md
         st.session_state["summary_date"] = datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
         st.session_state["repo_summaries"] = repo_summaries
@@ -424,21 +487,36 @@ if CONFIG["summary"]["enabled"]:
         st.markdown(summary_md)
         st.caption(f"Generated: {summary_date} · Model: {model}")
 
-        # PDF download
         saved_summaries = st.session_state.get("repo_summaries", {})
         saved_details = st.session_state.get("repo_details", {})
         try:
-            pdf_bytes = _build_summary_pdf(df.head(top_n), summary_md, summary_date, model, repo_summaries=saved_summaries, repo_details=saved_details)
+            pdf_bytes = _build_summary_pdf(
+                df.head(top_n), summary_md, summary_date, model,
+                repo_summaries=saved_summaries, repo_details=saved_details,
+            )
         except Exception as e:
             st.error(f"PDF generation failed: {e}")
             pdf_bytes = None
 
         if pdf_bytes:
-            st.download_button(
-                label="📄 Download as PDF",
-                data=pdf_bytes,
-                file_name=f"github-trending-summary-{datetime.utcnow().strftime('%Y-%m-%d')}.pdf",
-                mime="application/pdf",
-            )
-
-
+            pdf_filename = f"github-trending-summary-{datetime.utcnow().strftime('%Y-%m-%d')}.pdf"
+            col_dl, col_tg = st.columns([1, 1])
+            with col_dl:
+                st.download_button(
+                    label="📄 Download as PDF",
+                    data=pdf_bytes,
+                    file_name=pdf_filename,
+                    mime="application/pdf",
+                )
+            with col_tg:
+                if st.button("📨 Per Telegram senden"):
+                    with st.spinner("Sende PDF..."):
+                        err = _send_telegram_pdf(
+                            pdf_bytes,
+                            pdf_filename,
+                            f"GitHub Trending Report — {summary_date}",
+                        )
+                    if err:
+                        st.error(f"Telegram-Fehler: {err}")
+                    else:
+                        st.success("PDF gesendet!")
