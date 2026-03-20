@@ -113,15 +113,79 @@ def _send_telegram_pdf(pdf_bytes: bytes, filename: str, caption: str) -> str:
         return str(e)
 
 
-def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summaries: dict = None, repo_details: dict = None) -> bytes:
+def _generate_cover_image(language: str, date: str) -> bytes | None:
+    """Generate a cover image via FAL (Flux Schnell). Returns JPEG bytes or None on failure."""
+    api_key = os.getenv("FAL_KEY")
+    if not api_key:
+        return None
+    prompt = (
+        f"Abstract digital artwork representing open source software development and AI technology trends. "
+        f"GitHub repositories, code, data visualization, glowing nodes and network connections. "
+        f"Dark background, deep blue and violet tones, futuristic, professional, minimalist, high quality. "
+        f"No text, no letters, no words."
+        + (f" Focus on {language} programming ecosystem." if language else "")
+    )
+    try:
+        resp = requests.post(
+            "https://fal.run/fal-ai/flux/schnell",
+            headers={"Authorization": f"Key {api_key}", "Content-Type": "application/json"},
+            json={"prompt": prompt, "image_size": "landscape_16_9", "num_images": 1},
+            timeout=45,
+        )
+        resp.raise_for_status()
+        image_url = resp.json()["images"][0]["url"]
+        img_resp = requests.get(image_url, timeout=20)
+        img_resp.raise_for_status()
+        return img_resp.content
+    except Exception:
+        return None
+
+
+def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summaries: dict = None, repo_details: dict = None, cover_image: bytes = None, language: str = "") -> bytes:
     """Generate a PDF from the summary markdown and repo table."""
     import io
     import re
+    import tempfile
     from fpdf import FPDF
     from fpdf.enums import XPos, YPos
 
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=20)
+
+    # --- Cover page ---
+    pdf.add_page()
+    pdf.set_margins(0, 0, 0)
+
+    if cover_image:
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+                tmp.write(cover_image)
+                tmp_path = tmp.name
+            # Full-width image, top half of page
+            pdf.image(tmp_path, x=0, y=0, w=210, h=105)
+            import os as _os
+            _os.unlink(tmp_path)
+        except Exception:
+            pass
+
+    # Title overlay
+    pdf.set_xy(20, 115)
+    pdf.set_margins(20, 20, 20)
+    pdf.set_font("Helvetica", "B", 22)
+    pdf.set_text_color(30, 30, 30)
+    pdf.multi_cell(0, 12, "GitHub Trending", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.set_text_color(80, 80, 80)
+    pdf.multi_cell(0, 8, "AI Summary Report", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(6)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(120, 120, 120)
+    pdf.multi_cell(0, 6, f"Generated: {date}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.multi_cell(0, 6, f"Model: {_sanitize(model)}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    if language:
+        pdf.multi_cell(0, 6, f"Language filter: {language}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+    # Content starts on page 2
     pdf.add_page()
     pdf.set_margins(20, 20, 20)
 
@@ -474,10 +538,15 @@ if CONFIG["summary"]["enabled"]:
         else:
             summary_md = raw_response.strip()
 
+        # Generate cover image via FAL
+        with st.spinner("Generiere Titelgrafik (FAL Flux)..."):
+            cover_image = _generate_cover_image(language=language, date=datetime.utcnow().strftime("%d.%m.%Y"))
+
         st.session_state["summary_md"] = summary_md
         st.session_state["summary_date"] = datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
         st.session_state["repo_summaries"] = repo_summaries
         st.session_state["repo_details"] = repo_details
+        st.session_state["cover_image"] = cover_image
 
     # Display summary if available
     if "summary_md" in st.session_state:
@@ -489,10 +558,16 @@ if CONFIG["summary"]["enabled"]:
 
         saved_summaries = st.session_state.get("repo_summaries", {})
         saved_details = st.session_state.get("repo_details", {})
+        saved_cover = st.session_state.get("cover_image")
+
+        if saved_cover:
+            st.image(saved_cover, caption="AI-generierte Titelgrafik (Flux Schnell)", use_container_width=True)
+
         try:
             pdf_bytes = _build_summary_pdf(
                 df.head(top_n), summary_md, summary_date, model,
                 repo_summaries=saved_summaries, repo_details=saved_details,
+                cover_image=saved_cover, language=language,
             )
         except Exception as e:
             st.error(f"PDF generation failed: {e}")
