@@ -72,7 +72,7 @@ def _sanitize(text: str) -> str:
     return text.encode("latin-1", errors="ignore").decode("latin-1")
 
 
-def _build_summary_pdf(df, summary_md: str, date: str, model: str, readmes: dict = None) -> bytes:
+def _build_summary_pdf(df, summary_md: str, date: str, model: str, repo_summaries: dict = None) -> bytes:
     """Generate a PDF from the summary markdown and repo table."""
     import io
     import re
@@ -131,9 +131,8 @@ def _build_summary_pdf(df, summary_md: str, date: str, model: str, readmes: dict
         pdf.set_fill_color(*fill_color)
         pdf.set_text_color(60, 60, 60)
 
-        # Use README excerpt as description if available, fall back to GitHub description
-        readme_text = (readmes or {}).get(row["repo"], "")
-        desc = readme_text if readme_text else str(row["description"])
+        # Use LLM-generated one-liner if available, fall back to GitHub description
+        desc = (repo_summaries or {}).get(row["repo"], str(row["description"]))
         vals = [
             _sanitize(row["repo"][:28]),
             f"{row['stars']:,}",
@@ -300,7 +299,9 @@ if CONFIG["summary"]["enabled"]:
                 readmes[row["repo"]] = fetch_readme(row["repo"])
 
         repo_list_parts = []
+        repo_names = []
         for i, (_, row) in enumerate(top_df.iterrows()):
+            repo_names.append(row["repo"])
             entry = (
                 f"{i+1}. **{row['repo']}** ({row['stars']:,} ⭐, {row['language']})\n"
                 f"   Description: {row['description']}"
@@ -313,6 +314,11 @@ if CONFIG["summary"]["enabled"]:
             repo_list_parts.append(entry)
         repo_list = "\n\n".join(repo_list_parts)
 
+        # Placeholders to guide the model's per-repo summary section
+        repo_summary_placeholders = "\n".join(
+            f"{name}|||[Einzeiler hier]" for name in repo_names
+        )
+
         lang_instruction = (
             "Schreibe den Bericht auf Deutsch." if lang_out == "de"
             else "Write the report in English."
@@ -323,6 +329,7 @@ if CONFIG["summary"]["enabled"]:
             lang_instruction=lang_instruction,
             date=datetime.utcnow().strftime("%d.%m.%Y"),
             repo_list=repo_list,
+            repo_summary_placeholders=repo_summary_placeholders,
         )
 
         with st.spinner(f"Asking {model}..."):
@@ -343,16 +350,28 @@ if CONFIG["summary"]["enabled"]:
                     timeout=60,
                 )
                 resp.raise_for_status()
-                summary_md = resp.json()["choices"][0]["message"]["content"]
+                raw_response = resp.json()["choices"][0]["message"]["content"]
 
             except Exception as e:
                 st.error(f"LLM error: {e}")
                 st.stop()
 
-        # Store in session state so it persists without re-generating
+        # Parse out the REPO_SUMMARIES block from the response
+        repo_summaries = {}
+        if "---REPO_SUMMARIES---" in raw_response:
+            parts = raw_response.split("---REPO_SUMMARIES---", 1)
+            summary_md = parts[0].strip()
+            for line in parts[1].strip().splitlines():
+                if "|||" in line:
+                    repo_key, _, one_liner = line.partition("|||")
+                    repo_summaries[repo_key.strip()] = one_liner.strip()
+        else:
+            summary_md = raw_response.strip()
+
+        # Store in session state
         st.session_state["summary_md"] = summary_md
         st.session_state["summary_date"] = datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
-        st.session_state["summary_readmes"] = readmes
+        st.session_state["repo_summaries"] = repo_summaries
 
     # Display summary if available
     if "summary_md" in st.session_state:
@@ -363,13 +382,19 @@ if CONFIG["summary"]["enabled"]:
         st.caption(f"Generated: {summary_date} · Model: {model}")
 
         # PDF download
-        saved_readmes = st.session_state.get("summary_readmes", {})
-        pdf_bytes = _build_summary_pdf(df.head(top_n), summary_md, summary_date, model, readmes=saved_readmes)
-        st.download_button(
-            label="📄 Download as PDF",
-            data=pdf_bytes,
-            file_name=f"github-trending-summary-{datetime.utcnow().strftime('%Y-%m-%d')}.pdf",
-            mime="application/pdf",
-        )
+        saved_summaries = st.session_state.get("repo_summaries", {})
+        try:
+            pdf_bytes = _build_summary_pdf(df.head(top_n), summary_md, summary_date, model, repo_summaries=saved_summaries)
+        except Exception as e:
+            st.error(f"PDF generation failed: {e}")
+            pdf_bytes = None
+
+        if pdf_bytes:
+            st.download_button(
+                label="📄 Download as PDF",
+                data=pdf_bytes,
+                file_name=f"github-trending-summary-{datetime.utcnow().strftime('%Y-%m-%d')}.pdf",
+                mime="application/pdf",
+            )
 
 

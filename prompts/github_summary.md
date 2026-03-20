@@ -11,6 +11,14 @@ Der Bericht soll:
 Schreibstil: Analytisch, direkt, ohne Floskeln. Kein "Es ist interessant zu bemerken..." — einfach die Analyse.
 Formatierung: Strukturiertes Markdown mit H2-Überschriften und Fließtext. Bullet-Listen nur wo wirklich sinnvoll.
 
+Dann füge am Ende — nach der Hauptanalyse — exakt folgenden Block an (NICHT im Markdown-Bericht, sondern als separaten Block nach einer Trennzeile):
+
+---REPO_SUMMARIES---
+{repo_summary_placeholders}
+
+Für jedes Repository eine Zeile im Format:
+owner/repo|||Einzeilige Zusammenfassung des Projekts in max. 120 Zeichen. Was macht es konkret? Für wen ist es relevant?
+
 ---
 
 Repositories (Stand: {date}):
